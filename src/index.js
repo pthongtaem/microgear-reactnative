@@ -198,7 +198,7 @@ class Microgear extends EventEmitter {
 
     const cachekey = this.getGearCacheValue('key');
     if (cachekey && cachekey !== this.gearkey) {
-      self.resettoken();
+      self.resetToken();
       self.clearGearCache();
     }
 
@@ -516,7 +516,7 @@ class Microgear extends EventEmitter {
       }
 
       if (self.gearalias) {
-        self.setalias(self.gearalias);
+        self.setAlias(self.gearalias);
       }
 
       self.emit('connected');
@@ -628,7 +628,7 @@ class Microgear extends EventEmitter {
    * @param  {String}   gearname Gear name
    * @param  {Function} callback Callback
    */
-  setname(gearname, callback) {
+  setName(gearname, callback) {
     const self = this;
 
     if (this.gearname) this.unsubscribe(`/gearname/${this.gearname}`);
@@ -643,7 +643,7 @@ class Microgear extends EventEmitter {
    * @param  {String}   gearname Gear name
    * @param  {Function} callback Callback
    */
-  setalias(newalias, callback) {
+  setAlias(newalias, callback) {
     const self = this;
 
     this.publish(`/@setalias/${newalias}`, '', {}, () => {
@@ -656,7 +656,7 @@ class Microgear extends EventEmitter {
    * Reset name of this instance
    * @param  {Function} callback Callback
    */
-  unsetname(callback) {
+  unsetName(callback) {
     const self = this;
     if (this.gearname != null) {
       this.unsubscribe(`/gearname/${this.gearname}`, () => {

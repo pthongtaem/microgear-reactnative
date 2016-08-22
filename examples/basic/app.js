@@ -13,7 +13,7 @@ var microgear = new MicroGear.default({
 
 microgear.on('connected', function() {
     console.log('Connected...');
-    microgear.setalias("mygear");
+    microgear.setAlias("mygear");
     setInterval(function() {
         microgear.chat('mygear', 'Hello world.');
     },1000);
