@@ -2,3 +2,12 @@ node_modules
 *.log
 test.js
 DS_Store
+
+# vscode
+.vscode/
+
+# cache
+*.cache
+
+#lib
+lib/

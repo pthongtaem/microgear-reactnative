@@ -1,6 +1,6 @@
-# microgear-nodejs
+# microgear-reactnative
 
-microgear-nodejs คือ client library ภาษา Node.js ที่ทำหน้าที่เป็นตัวกลางในการเชื่อมโยง application code หรือ hardware เข้ากับบริการของ netpie platform เพื่อการพัฒนา IOT application รายละเอียดเกี่ยวกับ netpie platform สามารถศึกษาได้จาก https://netpie.io
+microgear-nodejs คือ client library สำหรับ React Native ที่ทำหน้าที่เป็นตัวกลางในการเชื่อมโยง application code หรือ hardware เข้ากับบริการของ netpie platform เพื่อการพัฒนา IOT application รายละเอียดเกี่ยวกับ netpie platform สามารถศึกษาได้จาก https://netpie.io
 
 ## Port ที่มีการใช
 
@@ -75,7 +75,7 @@ microgear.connect("happyfarm");
 microgear สามารถตั้งนามแฝงของตัวเองได้ ซึ่งสามารถใช้เป็นชื่อให้คนอื่นเรียกในการใช้ฟังก์ชั่น chat() และชื่อที่ตั้งในโค้ด จะไปปรากฎบนหน้าจัดการ key บนเว็บ netpie.io อย่างอัตโนมัติ
 
 **arguments**
-* *gearalias* `string` - ชื่อของ microgear นี้   
+* *gearalias* `string` - ชื่อของ microgear นี้
 
 ```js
 microgear.setAlias("plant");

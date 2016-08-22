@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-var MicroGear = require('microgear');
+var MicroGear = require('../../lib/');
 
-const KEY    = <APPKEY>;
-const SECRET = <APPSECRET>;
-const APPID     = <APPID>;
+const KEY    = 'M8YDQobAP8C3PfI';
+const SECRET = '2iOTp235lq0bR7NuetKztQFCs';
+const APPID     = 'dontest';
 
 var microgear = MicroGear.create({
     key : KEY,

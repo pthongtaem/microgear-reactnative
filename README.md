@@ -1,6 +1,6 @@
-# microgear-nodejs
+# microgear-reactnative
 
-microgear-nodejs is a client library for Node.js. The library is used to connect application code or hardware with the NETPIE Platform's service for developing IoT applications. For more details on the NETPIE Platform, please visit https://netpie.io .
+microgear-nodejs is a client library for React Native. The library is used to connect application code or hardware with the NETPIE Platform's service for developing IoT applications. For more details on the NETPIE Platform, please visit https://netpie.io .
 
 ## Outgoing Network Port
 
@@ -54,7 +54,7 @@ microgear.connect(APPID);
 * *config* is a json object with the following attributes:
   * *gearkey* `string` - is used as a microgear identity.
   * *gearsecret* `string` comes in a pair with gearkey. The secret is used for authentication and integrity.
-  * *alias* `string` - specifies the device alias.  
+  * *alias* `string` - specifies the device alias.
 
 ```js
 var microgear = MicroGear.create({
@@ -77,7 +77,7 @@ microgear.connect("happyfarm");
 microgear can set its own alias, which to be used for others make a function call chat(). The alias will appear on the key management portal of netpie.io .
 
 **arguments**
-* *alias* `string` - name of this microgear.   
+* *alias* `string` - name of this microgear.
 
 ```js
 microgear.setAlias("plant");
