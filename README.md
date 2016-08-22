@@ -1,45 +1,44 @@
 # microgear-reactnative
 
-microgear-nodejs is a client library for React Native. The library is used to connect application code or hardware with the NETPIE Platform's service for developing IoT applications. For more details on the NETPIE Platform, please visit https://netpie.io .
+microgear-reactnative is a client library for React Native. The library is used to connect application code or hardware with the NETPIE Platform's service for developing IoT applications. For more details on the NETPIE Platform, please visit https://netpie.io .
 
 ## Outgoing Network Port
 
 Make sure ther following ports are allowed to connect from your network.
-- Non-TLS mode : 8080 and 1883 (microgear-nodejs uses this mode by default)
-- TLS mode : 8081 and 8883
+- TLS mode : 8081 and 8883 (microgear-reactnative alway uses this mode)
 
 ## Installation
 
 ```
-npm install microgear
+npm install microgear-reactnative
 ```
 
 ## Usage example
 ```js
-var MicroGear = require('microgear');
+import Micrograr from 'microgear-reactnative';
 
-const APPID  = <APPID>;
-const KEY    = <APPKEY>;
+const APPID = <APPID>;
+const KEY = <APPKEY>;
 const SECRET = <APPSECRET>;
 
-var microgear = MicroGear.create({
+const microgear = MicroGear.create({
     key : KEY,
     secret : SECRET
 });
 
-microgear.on('connected', function() {
+microgear.on('connected', () => {
     console.log('Connected...');
     microgear.setAlias("mygear");
-    setInterval(function() {
+    setInterval(() => {
         microgear.chat('mygear', 'Hello world.');
-    },1000);
+    }, 1000);
 });
 
-microgear.on('message', function(topic,body) {
+microgear.on('message', (topic,body) => {
     console.log('incoming : '+topic+' : '+body);
 });
 
-microgear.on('closed', function() {
+microgear.on('closed', () => {
     console.log('Closed...');
 });
 
@@ -48,7 +47,7 @@ microgear.connect(APPID);
 
 ## Library Usage
 
-**Microgear.create (*gearkey*, *gearsecret*, *scope*)**
+**Constructor (*gearkey*, *gearsecret*, *alias*)**
 
 **arguments**
 * *config* is a json object with the following attributes:
@@ -57,7 +56,7 @@ microgear.connect(APPID);
   * *alias* `string` - specifies the device alias.
 
 ```js
-var microgear = MicroGear.create({
+const microgear = new Microgear({
     key : "sXfqDcXHzbFXiLk",
     secret : "DNonzg2ivwS8ceksykGntrfQjxbL98",
     alias : "myplant"
@@ -154,18 +153,6 @@ Since the function resetToken() is asynchronous, to connect applicatin after tok
 microgear.resetToken(function(result){
     microgear.connect(APPID);
 });
-```
-
----
-
-**void microgear.useTLS (tlsmode)**
-Enable or disable TLS. For microgear-nodejs, TLS is disabled by default.
-
-**arguments**
-* *tlsmode* `boolean` - The default is true (use TLS).
-
-```js
-microgear.useTLS(false);
 ```
 
 ---

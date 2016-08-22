@@ -56,7 +56,7 @@ class Microgear extends EventEmitter {
     const gearsecret = param.secret || param.gearsecret || '';
     const gearalias = param.alias || param.gearalias || '';
 
-    this.securemode = false;
+    this.securemode = true;
     this.debugmode = DEBUGMODE;
     this.gearkey = gearkey;
     this.gearsecret = gearsecret;
@@ -540,14 +540,6 @@ class Microgear extends EventEmitter {
    */
   setCachePath(cachePath) {
     this.microgearcache = cachePath;
-  }
-
-  /**
-   * Override cache file path
-   * @param  {string} path cache file path
-   */
-  useTLS(usetls) {
-    this.securemode = usetls;
   }
 
   /**
