@@ -9,9 +9,8 @@ import path from 'path';
 import EventEmitter from 'events';
 import mqtt from 'mqtt';
 import fs from 'fs';
-import https from 'https';
-import http from 'http';
 import url from 'url';
+import axios from 'axios';
 
 /**
  * General API Endpoint
@@ -195,8 +194,6 @@ class Microgear extends EventEmitter {
   gettoken(callback) {
     const self = this;
 
-    const httpclient = this.securemode ? https : http;
-
     if (this.debugmode) console.log('Check stored token');
 
     const cachekey = this.getGearCacheValue('key');
@@ -232,24 +229,21 @@ class Microgear extends EventEmitter {
             method: 'GET',
           };
         }
-        const rq = httpclient.request(opt, (res) => {
-          let buff = '';
-          res.on('data', (chunk) => {
-            buff += chunk;
-          });
-          res.on('end', () => {
-            if (buff) {
-              self.accesstoken.endpoint = buff;
-              self.setGearCacheValue('accesstoken', self.accesstoken);
-              if (typeof (callback) === 'function') callback(3);
-            }
-            if (typeof (callback) === 'function') callback(2);
-          });
-        });
-        rq.on('error', (e) => {
+
+        axios.get(`https://${opt.host}:${opt.port}${opt.path}`)
+        .then((response) => {
+          const buff = response.data;
+
+          if (buff) {
+            self.accesstoken.endpoint = buff;
+            self.setGearCacheValue('accesstoken', self.accesstoken);
+            if (typeof (callback) === 'function') callback(3);
+          }
+          if (typeof (callback) === 'function') callback(2);
+        })
+        .catch((e) => {
           if (typeof (callback) === 'function') callback(2);
         });
-        rq.end();
       }
     } else {
       if (!this.requesttoken) {
@@ -749,10 +743,8 @@ class Microgear extends EventEmitter {
    * Revoke and remove token from cache
    * @param  {Function} callback Callabck
    */
-  resettoken(callback) {
+  resetToken(callback) {
     const self = this;
-
-    const httpclient = this.securemode ? https : http;
 
     this.accesstoken = this.getGearCacheValue('accesstoken');
     if (this.accesstoken) {
@@ -775,30 +767,25 @@ class Microgear extends EventEmitter {
         };
       }
 
-      const rq = httpclient.request(opt, (res) => {
-        let result = '';
-        res.on('data', (chunk) => {
-          result += chunk;
-        });
-        res.on('end', () => {
-          if (result !== 'FAILED') {
-            self.clearGearCache();
-            if (typeof (callback) === 'function') callback(null);
-          } else if (typeof (callback) === 'function') {
-            callback(result);
-          }
-        });
-      });
-      rq.on('error', (e) => {
+      axios.get(`https://${opt.host}:${opt.port}${opt.path}`)
+      .then((response) => {
+        const result = response.data;
+
+        if (result !== 'FAILED') {
+          self.clearGearCache();
+          if (typeof (callback) === 'function') callback(null);
+        } else if (typeof (callback) === 'function') {
+          callback(result);
+        }
+      })
+      .catch((e) => {
         self.emit('error', `Reset token error : ${e.message}`);
         if (typeof (callback) === 'function') callback(e.message);
       });
-      rq.end();
     } else if (typeof (callback) === 'function') {
       callback(null);
     }
   }
-
 }
 
 export default Microgear;

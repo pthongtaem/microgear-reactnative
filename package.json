@@ -2,10 +2,11 @@
   "name": "microgear-reactnative",
   "version": "0.1.0",
   "scripts": {
-    "compile": "babel --presets es2015 -d lib/ src/",
+    "compile": "babel --presets es2015 -d lib/ src/ --watch",
     "prepublish": "npm run compile"
   },
   "dependencies": {
+    "axios": "^0.13.1",
     "crypto": "*",
     "hat": "*",
     "mqtt": "*",
