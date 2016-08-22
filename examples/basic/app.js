@@ -6,7 +6,7 @@ const KEY    = 'M8YDQobAP8C3PfI';
 const SECRET = '2iOTp235lq0bR7NuetKztQFCs';
 const APPID     = 'dontest';
 
-var microgear = MicroGear.create({
+var microgear = new MicroGear.default({
     key : KEY,
     secret : SECRET
 });

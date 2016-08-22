@@ -6,7 +6,7 @@
 import OAuth from 'oauth';
 import crypto from 'crypto';
 import path from 'path';
-import events from 'events';
+import EventEmitter from 'events';
 import mqtt from 'mqtt';
 import fs from 'fs';
 import https from 'https';
@@ -48,16 +48,14 @@ const ps = {
   u: 'unaliased',
 };
 
-/**
- * Create MicroGear client
- * @param  {object} param client parameter
- * @return {object}       microgear client
- */
-function create(param) {
-  let httpclient = null;
-  // let oauth;
+class Microgear extends EventEmitter {
+  constructor(param) {
+    super();
 
-  const microgear = function (gearkey, gearsecret, gearalias) {
+    const gearkey = param.key || param.gearkey || '';
+    const gearsecret = param.secret || param.gearsecret || '';
+    const gearalias = param.alias || param.gearalias || '';
+
     this.securemode = false;
     this.debugmode = DEBUGMODE;
     this.gearkey = gearkey;
@@ -75,92 +73,129 @@ function create(param) {
     this.options = {};
     this.toktime = MINTOKDELAYTIME;
     this.microgearcache = `microgear-${this.gearkey}.cache`;
-  };
 
-  microgear.prototype = new events.EventEmitter();
+    this.cache = {
+      getItem: (key) => {
+        try {
+          const val = fs.readFileSync(`${appdir}/${key}`);
+          if (typeof (val) !== 'undefined') {
+            const jsonobj = JSON.parse(val);
+            return jsonobj._;
+          }
 
-  microgear.prototype.cache = {
-    getItem: (key) => {
-      try {
-        const val = fs.readFileSync(`${appdir}/${key}`);
-        if (typeof (val) !== 'undefined') {
-          const jsonobj = JSON.parse(val);
-          return jsonobj._;
+          return null;
+        } catch (e) {
+          return null;
         }
+      },
+      setItem: (key, val) => {
+        fs.writeFileSync(`${appdir}/${key}`, JSON.stringify({ _: val }));
+      },
+    };
 
-        return null;
-      } catch (e) {
-        return null;
+    process.on('uncaughtException', function (err) {
+      this.emit(err);
+    });
+
+    this.on('newListener', function (event, listener) {
+      switch (event) {
+        case 'present' :
+          if (this.client) {
+            if (this.client.connected) {
+              this.subscribe('/&present');
+            }
+          }
+          break;
+        case 'absent' :
+          if (this.client) {
+            if (this.client.connected) {
+              this.subscribe('/&absent');
+            }
+          }
+          break;
+        default:
+          break;
       }
-    },
-    setItem: (key, val) => {
-      fs.writeFileSync(`${appdir}/${key}`, JSON.stringify({ _: val }));
-    },
-  };
+    });
+  }
 
   /**
-   * Override cache file path
-   * @param  {string} path cache file path
+   * Initiate NetPIE connection
+   * @param  {String}   appid appid
+   * @param  {Function} done  Callback
    */
-  microgear.prototype.setCachePath = function (cachePath) {
-    this.microgearcache = cachePath;
-  };
+  connect(appid, arg1, arg2) {
+    this.appid = appid;
+    this.doConnect(arg1, arg2);
+  }
 
   /**
-   * Override cache file path
-   * @param  {string} path cache file path
+   * Do NetPIE connection
+   * @param  {String}   appid appid
+   * @param  {Function} done  Callback
    */
-  microgear.prototype.useTLS = function (usetls) {
-    this.securemode = usetls;
-  };
-
-  /**
-   * Cache getter
-   * @param  {string} key key name
-   * @return {String}     value
-   */
-  microgear.prototype.getGearCacheValue = function (key) {
-    const c = this.cache.getItem(this.microgearcache);
-    if (c == null) return null;
-    return c[key];
-  };
-
-  /**
-   * Cache setter
-   * @param {String} key   key name
-   * @param {String} value value
-   */
-  microgear.prototype.setGearCacheValue = function (key, value) {
-    let c = this.cache.getItem(this.microgearcache);
-    if (c == null) c = {};
-    c[key] = value;
-    this.cache.setItem(this.microgearcache, c);
-  };
-
-  /**
-   * Clear cache
-   * @param {String} key   key name
-   */
-  microgear.prototype.clearGearCache = function (key) {
-    const c = this.cache.getItem(this.microgearcache);
-    if (c == null) return;
-
-    if (key) {
-      c[key] = null;
-      this.cache.setItem(this.microgearcache, c);
+  doConnect(arg1, arg2) {
+    let done = null;
+    if (typeof (arg1) === 'function') {
+      done = arg1;
     } else {
-      this.cache.setItem(this.microgearcache, null);
+      // TODO check bug arg1 when obejct
+      if (typeof (arg1) === 'object') {
+        this.options = arg1;
+        if (this.options && this.options.will && this.options.will.topic) {
+          this.options.will.topic = `/${this.appid}${this.options.will.topic}`;
+        }
+      }
+      if (typeof (arg2) === 'function') done = arg2;
     }
-  };
+    this.initiateConnection(done);
+  }
+
+  /**
+   * Initalize a connection to NETPIE
+   * @param  {object} callback function
+   */
+  initiateConnection(done) {
+    const self = this;
+
+    this.gettoken((state) => {
+      switch (state) {
+        case 0 :    // No token issue
+          console.log('Error: request token is not issued, please check your key and secret.');
+          throw new Error('Error: request token is not issued, please check your key and secret.');
+          return;
+        case 1 :    // Request token issued or prepare to request request token again
+          setTimeout(() => {
+            if (self.toktime < MAXTOKDELAYTIME) self.toktime *= 2;
+            self.initiateConnection(done);
+          }, self.toktime);
+          return;
+        case 2 :    // Access token issued
+          self.initiateConnection(done);
+          self.toktime = 1;
+          return;
+        case 3 :    // Has access token ready for connecting broker
+          self.toktime = 1;
+          self.brokerConnect(() => {
+            if (typeof (done) === 'function') done();
+          });
+          return;
+        default:
+          return;
+      }
+    });
+
+    return;
+  }
 
   /**
    * Helper function to obtain access token
    * @param  {Function} callback Callback
    */
-  microgear.prototype.gettoken = function (callback) {
+  gettoken(callback) {
     const self = this;
 
-    httpclient = this.securemode ? https : http;
+    const httpclient = this.securemode ? https : http;
 
     if (this.debugmode) console.log('Check stored token');
 
@@ -169,6 +204,7 @@ function create(param) {
       self.resettoken();
       self.clearGearCache();
     }
+
     this.setGearCacheValue('key', this.gearkey);
     if (!this.accesstoken) {
       this.accesstoken = this.getGearCacheValue('accesstoken');
@@ -317,13 +353,36 @@ function create(param) {
         });
       }
     }
-  };
+  }
+
+  /**
+   * Cache getter
+   * @param  {string} key key name
+   * @return {String}     value
+   */
+  getGearCacheValue(key) {
+    const c = this.cache.getItem(this.microgearcache);
+    if (c == null) return null;
+    return c[key];
+  }
+
+  /**
+   * Cache setter
+   * @param {String} key   key name
+   * @param {String} value value
+   */
+  setGearCacheValue(key, value) {
+    let c = this.cache.getItem(this.microgearcache);
+    if (c == null) c = {};
+    c[key] = value;
+    this.cache.setItem(this.microgearcache, c);
+  }
 
   /**
    * Authenticate with broker using a current access token
    * @param  {Function} callback Callback
    */
-  microgear.prototype.brokerConnect = function (callback) {
+  brokerConnect(callback) {
     const self = this;
 
     const hkey = `${this.accesstoken.secret}&${this.gearsecret}`;
@@ -473,98 +532,63 @@ function create(param) {
       self.emit('pieclosed');
       self.emit('closed');
     });
-  };
+  }
 
   /**
-   * Initalize a connection to NETPIE
-   * @param  {object} callback function
+   * Override cache file path
+   * @param  {string} path cache file path
    */
-  microgear.prototype.initiateConnection = function (done) {
-    const self = this;
-
-    this.gettoken((state) => {
-      switch (state) {
-        case 0 :    // No token issue
-          console.log('Error: request token is not issued, please check your key and secret.');
-          throw new Error('Error: request token is not issued, please check your key and secret.');
-          return;
-        case 1 :    // Request token issued or prepare to request request token again
-          setTimeout(() => {
-            if (self.toktime < MAXTOKDELAYTIME) self.toktime *= 2;
-            self.initiateConnection(done);
-          }, self.toktime);
-          return;
-        case 2 :    // Access token issued
-          self.initiateConnection(done);
-          self.toktime = 1;
-          return;
-        case 3 :    // Has access token ready for connecting broker
-          self.toktime = 1;
-          self.brokerConnect(() => {
-            if (typeof (done) === 'function') done();
-          });
-          return;
-        default:
-          return;
-      }
-    });
-  };
+  setCachePath(cachePath) {
+    this.microgearcache = cachePath;
+  }
 
   /**
-   * Do NetPIE connection
-   * @param  {String}   appid appid
-   * @param  {Function} done  Callback
+   * Override cache file path
+   * @param  {string} path cache file path
    */
-  microgear.prototype.doConnect = function (arg1, arg2) {
-    let done = null;
-    if (typeof (arg1) === 'function') {
-      done = arg1;
+  useTLS(usetls) {
+    this.securemode = usetls;
+  }
+
+  /**
+   * Clear cache
+   * @param {String} key   key name
+   */
+  clearGearCache(key) {
+    const c = this.cache.getItem(this.microgearcache);
+    if (c == null) return;
+
+    if (key) {
+      c[key] = null;
+      this.cache.setItem(this.microgearcache, c);
     } else {
-      // TODO check bug arg1 when obejct
-      if (typeof (arg1) === 'object') {
-        this.options = arg1;
-        if (this.options && this.options.will && this.options.will.topic) {
-          this.options.will.topic = `/${this.appid}${this.options.will.topic}`;
-        }
-      }
-      if (typeof (arg2) === 'function') done = arg2;
+      this.cache.setItem(this.microgearcache, null);
     }
-    this.initiateConnection(done);
-  };
-
-  /**
-   * Initiate NetPIE connection
-   * @param  {String}   appid appid
-   * @param  {Function} done  Callback
-   */
-  microgear.prototype.connect = function (appid, arg1, arg2) {
-    this.appid = appid;
-    this.doConnect(arg1, arg2);
-  };
+  }
 
   /*
     * Get instance of the microgear
     * @return {Object} microgear instance
     */
-  microgear.prototype.getinstance = function () {
+  getinstance() {
     return this;
-  };
+  }
 
   /**
    * Close connection
    * @param  {Function} done Callback
    */
-  microgear.prototype.disconnect = function (done) {
+  disconnect(done) {
     this.client.end();
     this.emit('disconnected');
-  };
+  }
 
   /**
    * Subscribe topic
    * @param  {String}   topic    Topic string of the form /my/topic
    * @param  {Function} callback Callback
    */
-  microgear.prototype.subscribe = function (topic, callback) {
+  subscribe(topic, callback) {
     const self = this;
 
     if (this.client.connected) {
@@ -590,14 +614,14 @@ function create(param) {
     } else {
       self.emit('error', 'microgear is disconnected, cannot subscribe.');
     }
-  };
+  }
 
   /**
    * Unscribe topic
    * @param  {String}   topic    Topic string
    * @param  {Function} callback Callback
    */
-  microgear.prototype.unsubscribe = function (topic, callback) {
+  unsubscribe(topic, callback) {
     const self = this;
 
     if (this.debugmode) {
@@ -610,7 +634,7 @@ function create(param) {
       if (self.debugmode) console.log(self.subscriptions);
       if (typeof (callback) === 'function') callback();
     });
-  };
+  }
 
   /**
    * Deprecated
@@ -618,7 +642,7 @@ function create(param) {
    * @param  {String}   gearname Gear name
    * @param  {Function} callback Callback
    */
-  microgear.prototype.setname = function (gearname, callback) {
+  setname(gearname, callback) {
     const self = this;
 
     if (this.gearname) this.unsubscribe(`/gearname/${this.gearname}`);
@@ -626,27 +650,27 @@ function create(param) {
       self.gearname = gearname;
       if (typeof (callback) === 'function') callback();
     });
-  };
+  }
 
   /**
    * Set alias on this instance
    * @param  {String}   gearname Gear name
    * @param  {Function} callback Callback
    */
-  microgear.prototype.setalias = function (newalias, callback) {
+  setalias(newalias, callback) {
     const self = this;
 
     this.publish(`/@setalias/${newalias}`, '', {}, () => {
       self.gearalias = newalias;
       if (typeof (callback) === 'function') callback();
     });
-  };
+  }
 
   /**
    * Reset name of this instance
    * @param  {Function} callback Callback
    */
-  microgear.prototype.unsetname = function (callback) {
+  unsetname(callback) {
     const self = this;
     if (this.gearname != null) {
       this.unsubscribe(`/gearname/${this.gearname}`, () => {
@@ -654,7 +678,7 @@ function create(param) {
         if (typeof (callback) === 'function') callback();
       });
     }
-  };
+  }
 
   /**
    * Publish message
@@ -662,7 +686,7 @@ function create(param) {
    * @param  {String}   message  Message
    * @param  {Object} param Publish Parameters
    */
-  microgear.prototype.publish = function (topic, message, param, callback) {
+  publish(topic, message, param, callback) {
     const self = this;
     let options;
 
@@ -682,7 +706,7 @@ function create(param) {
     } else {
       self.emit('error', 'microgear is disconnected, cannot publish.');
     }
-  };
+  }
 
   /**
    * Send message to a microgear addressed by @gearname
@@ -690,53 +714,53 @@ function create(param) {
    * @param  {String}   message  Message
    * @param  {Function} callback
    */
-  microgear.prototype.chat = function (gearname, message, options) {
+  chat(gearname, message, options) {
     this.publish(`/gearname/${gearname}`, message, options);
-  };
+  }
 
   /**
    * call api request on stream data, this method is available only for api tester at the moment
    * @param  {String}   stream The name of stream
    * @param  {String}   filter  Query condition
    */
-  microgear.prototype.readstream = function (stream, filter) {
+  readstream(stream, filter) {
     this.publish(`/@readstream/${stream}`, `{"filter":"${filter}"}`);
-  };
+  }
 
   /**
    * call api request to record stream data, this method is available only for api tester at the moment
    * @param  {String}   stream The name of stream
    * @param  {String}   data  Stream data
    */
-  microgear.prototype.writestream = function (stream, data) {
+  writestream(stream, data) {
     this.publish(`/@writestream/${stream}`, `{"data":${data}}`);
-  };
+  }
 
   /**
    * read data from a specific postbox. data will be pushed through the topic /@readpostbox/<box>
    * @param  {String}   box The name of the postbox
    */
-  microgear.prototype.readpostbox = function (box) {
+  readpostbox(box) {
     this.publish(`/@readpostbox/${box}`);
-  };
+  }
 
   /**
    * put data to a specific postbox
    * @param  {String}   box The name of the postbox
    * @param  {String}   data  the text data to be stored
    */
-  microgear.prototype.writepostbox = function (box, data) {
+  writepostbox(box, data) {
     this.publish(`/@writepostbox/${box}`, data);
-  };
+  }
 
-  /**
+    /**
    * Revoke and remove token from cache
    * @param  {Function} callback Callabck
    */
-  microgear.prototype.resettoken = function (callback) {
+  resettoken(callback) {
     const self = this;
 
-    httpclient = this.securemode ? https : http;
+    const httpclient = this.securemode ? https : http;
 
     this.accesstoken = this.getGearCacheValue('accesstoken');
     if (this.accesstoken) {
@@ -781,53 +805,8 @@ function create(param) {
     } else if (typeof (callback) === 'function') {
       callback(null);
     }
-  };
-
-  process.on('uncaughtException', function (err) {
-    this.emit(err);
-  });
-
-  microgear.prototype.secureConnect = microgear.prototype.secureconnect;
-  microgear.prototype.setName = microgear.prototype.setname;
-  microgear.prototype.unsetName = microgear.prototype.unsetname;
-  microgear.prototype.setAlias = microgear.prototype.setalias;
-  microgear.prototype.resetToken = microgear.prototype.resettoken;
-
-  const gkey = param.key || param.gearkey || '';
-  const gsecret = param.secret || param.gearsecret || '';
-  const galias = param.alias || param.gearalias || '';
-
-  if (!param) return;
-
-  const scope = param.scope;
-
-  if (gkey && gsecret) {
-    const mg = new microgear(gkey, gsecret, galias);
-    mg.scope = param.scope;
-    mg.on('newListener', function (event, listener) {
-      switch (event) {
-        case 'present' :
-          if (this.client) {
-            if (this.client.connected) {
-              this.subscribe('/&present');
-            }
-          }
-          break;
-        case 'absent' :
-          if (this.client) {
-            if (this.client.connected) {
-              this.subscribe('/&absent');
-            }
-          }
-          break;
-        default:
-          break;
-      }
-    });
-    return mg;
   }
 
-  return null;
 }
 
-module.exports.create = create;
+export default Microgear;
